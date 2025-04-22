@@ -1,5 +1,6 @@
 import heapq
 import sys
+import re
 
 class NPuzzleSolver:
     def __init__(self, filename):
@@ -8,11 +9,37 @@ class NPuzzleSolver:
         self.blank_pos = self.find_blank()
 
     def read_puzzle(self, filename):
-        """Reads the puzzle configuration from a file and returns the grid as a tuple of tuples."""
-        with open(filename, "r") as f:
-            grid = tuple(tuple(map(int, line.strip().split("\t"))) for line in f)
-        n = len(grid)
-        return grid, n
+        """Reads the puzzle configuration from a file and returns the grid as a tuple of tuples.
+        Now handles multiple separator types and skips empty lines."""
+        try:
+            with open(filename, "r") as f:
+                # Read non-empty lines and split on any whitespace
+                lines = [line.strip() for line in f if line.strip()]
+                # Convert each number, handling multiple spaces/tabs
+                grid = [tuple(map(int, re.split(r'\s+', line))) for line in lines]
+                
+                # Validate grid
+                n = len(grid)
+                if n == 0:
+                    raise ValueError("Empty puzzle file")
+                
+                # Check if all rows have the same length and it's a square
+                if not all(len(row) == n for row in grid):
+                    raise ValueError("Puzzle must be square (same number of rows and columns)")
+                
+                # Convert to tuple of tuples for immutability
+                return tuple(tuple(row) for row in grid), n
+        except FileNotFoundError:
+            print(f"Error: File '{filename}' not found")
+            sys.exit(1)
+        except ValueError as e:
+            if str(e).startswith("Empty puzzle"):
+                print(str(e))
+            elif str(e).startswith("Puzzle must be square"):
+                print(str(e))
+            else:
+                print("Error: Invalid puzzle format. File should contain only numbers separated by spaces or tabs")
+            sys.exit(1)
 
     def generate_goal_state(self):
         """Generates the goal state for an n*n puzzle."""
@@ -71,8 +98,9 @@ class NPuzzleSolver:
             for neighbor, new_blank_pos in self.get_neighbors(state, blank_pos):
                 if neighbor not in visited:
                     new_path = path + [neighbor]
-                    f = g + 1 + self.heuristic(neighbor)
-                    heapq.heappush(priority_queue, (f, g + 1, neighbor, new_blank_pos, new_path))
+                    new_g = g + 1  # Cost to reach neighbor
+                    f = new_g + self.heuristic(neighbor)  # f(n) = g(n) + h(n)
+                    heapq.heappush(priority_queue, (f, new_g, neighbor, new_blank_pos, new_path))
 
         return None  # No solution found (shouldn't happen for valid inputs)
 
@@ -88,8 +116,9 @@ class NPuzzleSolver:
 
     def print_grid(self, grid):
         """Prints the grid in a readable format."""
+        max_width = max(len(str(x)) for row in grid for x in row)
         for row in grid:
-            print("\t".join(str(x) if x != 0 else " " for x in row))
+            print(" ".join(str(x).rjust(max_width) if x != 0 else " " * max_width for x in row))
 
 if __name__ == "__main__":
     if len(sys.argv) != 2:
